@@ -13,3 +13,7 @@ Revision history for Perl extension Net::WhoisNG.
 0.04  Fri Dec 3, 2004
         - Updated documentation
         - Fixed some runtime errors relating to udefined objects
+        
+0.05  Fri Dec 3, 2004
+        - more doc fix
+        - added more informative test code

@@ -30,7 +30,7 @@ our @EXPORT = qw(
 	
 );
 
-our $VERSION = '0.04';
+our $VERSION = '0.05';
 
 sub new{
    my $class=shift;
@@ -124,6 +124,7 @@ sub parseResult{
    my $capregistrant;
    my $offset;
    my @tcap;
+   $self->{nameservers}=undef;
    
    foreach my $line(@rslts){
       $line=~ s/\t/        /g;
@@ -421,7 +422,7 @@ sub parseResult{
       elsif($self->{domain}=~ /.biz/) {
          # Above extensions are the most code friendly
          #Registrant Street1:Whareroa Rd
-         if($line=~ /NOT\s+FOUND/){
+         if($line=~ /NOT\s+FOUND/i){
             return 0;
          }
          if($line=~ /^Billing/ or $line=~ /^Admin/ or $line=~ /^Tech/ or $line=~ /^Registrant/){
@@ -513,7 +514,10 @@ sub sanitizeDate{
    if($raw_date=~ /(\d{1,2})-(\w\w\w)-(\d\d\d\d)/){
       return "$2-$1-$3";
    }
-   elsif($raw_date=~ /(\d\d\d\d)-(\w\w\w)-(^\d\d$)/){
+   elsif($raw_date=~ /(\d\d\d\d)-(\w\w\w)-(\d\d$)/){
+      return "$2-$3-$1";
+   }
+   elsif($raw_date=~ /(\d\d\d\d)-(\w\w\w)-(\d\d).$/){
       return "$2-$3-$1";
    }
    elsif($raw_date=~ /\w\w\w,\s+(\S+)\s+(\d{1,2}),\s+(\d\d\d\d)/){
@@ -664,6 +668,11 @@ sub getNameServers{
 
 sub expired{
 }
+
+sub lookup{
+   my $self=shift;
+   return $self->lookUp();
+}
 # Preloaded methods go here.
 
 1;
@@ -672,7 +681,7 @@ __END__
 
 =head1 NAME
 
-Net::WhoisNG - Perl extension for whois lookup and parsing
+Net::WhoisNG - Perl extension for whois  and parsing
 
 =head1 SYNOPSIS
 
@@ -724,7 +733,7 @@ supports .org and .info formats and did not implement expiration date as of june
 
 This version supports the com, net, org, info, biz and edu TLDs. Rapidly implementing other TLDs.
 
-The module starts by examinig the extension and setting the appropriate whois server. The whois server URL is constructed as $tld.whois-servers.net. The method lookup() then tries to connect and query the server. It then hands over to a parser and 
+The module starts by examinig the extension and setting the appropriate whois server. The whois server URL is constructed as $tld.whois-servers.net. The method lookUp() then tries to connect and query the server. It then hands over to a parser and 
 returns 1 if successful or 0 otherwise. U can then obtain various properties using methods listed above. Note that not all properties will be defined for every domain.  
 
 =head2 EXPORT

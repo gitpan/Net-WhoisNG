@@ -5,7 +5,7 @@
 
 # change 'tests => 1' to 'tests => last_test_to_print';
 
-use Test::More tests => 2;
+use Test::More tests => 5;
 BEGIN { use_ok('Net::WhoisNG') };
 
 #########################
@@ -14,16 +14,19 @@ BEGIN { use_ok('Net::WhoisNG') };
 # its man page ( perldoc Test::More ) for help writing this test script.
 
 
-my $dom="freebsd.org";
-my $w = new Net::WhoisNG("freebsd.org") or die "domain creation failed\n";
+my $dom="perl.org";
+my $w = new Net::WhoisNG($dom) or die "domain creation failed\n";
+diag("** TESTING ON $dom **");
 if(!$w->lookUp()){
-   print "Domain not found\n";
+    diag("freebsd.org should be alive and well this century\n");
    exit;
 }
-#my $test=$w->getRegistrar();
-#print "registrar: $test\n";
-my $t2=$w->getNameServers();
-print "Heres the NAMESERVERS\n",@$t2;
+ok(defined $w->lookUp(),"Lookup succeeded!") and diag("\n","$dom Resolved fine");
+diag("***** GETTING NAME SERVERS ******");
+ok(defined $w->getNameServers(),"Name servers resolution") and printNameServers($w);
+diag(" *** GETTING REGISTRANT INFO ***");
+ok(defined $w->getPerson("registrant"),"No registrar") and printPerson($w,"registrant");
+
 my $ex=$w->getExpirationDate();
 print "Expires: $ex\n";
 my $p=$w->getPerson("tech") or die "No admin contact\n";
@@ -37,5 +40,21 @@ if($status){
 }
 else{
    diag "Domain expire: $ex\n";
+}
+sub printNameServers{
+   my $lw=shift;
+   my $tns=$lw->getNameServers();
+   my @myns=@$tns;
+   diag("\n");
+   diag(join("\n",@myns));
+}
+
+sub printPerson{
+   my $lw=shift;
+   my $mytype=shift;
+   my $p=$lw->getPerson($mytype); 
+   diag("\n"); 
+   diag("Name: ",$p->getName()); 
+   diag("Phone: ",$p->getPhone());
 }
 ok(1);
