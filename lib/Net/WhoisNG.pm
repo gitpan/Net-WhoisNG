@@ -30,7 +30,7 @@ our @EXPORT = qw(
 	
 );
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 sub new{
    my $class=shift;
@@ -610,13 +610,13 @@ Net::WhoisNG - Perl extension for whois lookup and parsing
    
    'type' is one of (admin,tech,registrant)
    
-   Person Object implements several methods to obtain properties of the contact
+   The Person Object implements several methods to obtain properties of the contact
    
    $contact->getCredentials(); #Returns a ref to an array of contact info for $type
    
-   getCredentials() was implemeted to hold all info about a contact beacause some 
+   getCredentials() was implemeted to return an unparsed set of info about a contact beacause some 
    whois servers are so irregular in their formatting that it was a impractical to 
-   parse the contact info further. For .org and .info, the followingmethods work.
+   parse the contact info further. Where available such as with .org and .info the following methods work.
    
    getName(), getOrganization(), getState(), getPostalCode, getCountry(), getEmail(),
    getStreet(), getPhone(), getFax()
@@ -625,10 +625,12 @@ Net::WhoisNG - Perl extension for whois lookup and parsing
 
 Whois Next Generation. Whois lookup module alternative to Net::Whois 
 
-THis module is used to lookup whois information on domains. I decided to re-invent the wheel because the Net::Whois only
-supports .org and .info formats and didn't implement expiration date as of june 2004. Currently supported TLDs are com,net,org,info,edu. 
+This module is used to lookup whois information on domains. I decided to 're-invent' the wheel because the Net::Whois only
+supports .org and .info formats and did not implement expiration date as of june 2004. 
 
-The module starts by examinig the extention and setting the appropriate whois server. The server is constructed as $tld.whois-servers.net. The method lookup() then tries to connect and query the server. It then hands over to a parser and 
+This version supports the com, net, org, info and edu TLDs. Rapidly implementing other TLDs.
+
+The module starts by examinig the extension and setting the appropriate whois server. The whois server URL is constructed as $tld.whois-servers.net. The method lookup() then tries to connect and query the server. It then hands over to a parser and 
 returns 1 if successful or 0 otherwise. U can then obtain various properties using methods listed above. Note that not all properties will be defined for every domain.  
 
 =head2 EXPORT

@@ -4,3 +4,5 @@ Revision history for Perl extension Net::WhoisNG.
 	- original version; created by h2xs 1.23 with options
 		-A -X -n Net::WhoisNG
 
+0.02  Fri jul 23, 2004
+        - Cleaned up documentation spelling errors and such
