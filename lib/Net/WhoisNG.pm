@@ -30,7 +30,7 @@ our @EXPORT = qw(
 	
 );
 
-our $VERSION = '0.03';
+our $VERSION = '0.04';
 
 sub new{
    my $class=shift;
@@ -60,9 +60,12 @@ sub lookUp{
    my $raw_domain;
    my $domain;
    my $server=$self->{server};
-   my $ip = gethostbyname($server) or die "Failed gethostbyname\n";
+   if($self->{domain}){
+      $raw_domain=$self->{domain};
+   }   
+   my $ip = gethostbyname($server) or die "Failed gethostbyname $server\n";
    $ip = inet_ntoa($ip);
-   my $sock = IO::Socket::INET->new(PeerAddr => $ip, PeerPort => 'whois', Proto => 'tcp') or die "Socket failed\n";
+   my $sock = IO::Socket::INET->new(PeerAddr => $ip, PeerPort => 'whois', Proto => 'tcp') or print "Socket to $ip failed on $raw_domain\n" and return 0;
    $sock->autoflush();
    if($sock){
       $self->{socket}=$sock;
@@ -70,9 +73,7 @@ sub lookUp{
       print "Bad Socket. Exiting ...\n";
       exit;
    }
-   if($self->{domain}){
-      $raw_domain=$self->{domain};
-   }
+
    $domain=$self->fixFormat($raw_domain);
    print $sock uc("$domain\n");
    my @rslts=<$sock>;
@@ -83,10 +84,11 @@ sub lookUp{
             $sock->close();
             $ip = gethostbyname($server) or die "Failed gethostbyname\n";
             $ip = inet_ntoa($ip);
-            $sock = IO::Socket::INET->new(PeerAddr => $ip, PeerPort => 'whois', Proto => 'tcp') or die "Socket failed\n";
+            $sock = IO::Socket::INET->new(PeerAddr => $ip, PeerPort => 'whois', Proto => 'tcp',Timeout => "5",) or print "Socket failed on $raw_domain\n" and return 0;
             $sock->autoflush();
             print $sock uc("$raw_domain\n");
             @rslts=<$sock>;
+            
             $sock->close();
            # exit;
          }
@@ -132,7 +134,7 @@ sub parseResult{
          #Do com and .net specific parsing
          if($line=~ /Registrar:\s+((\S+)\s+)+/g){
             $self->setRegistrar($2);
-            print "got $2\n";
+           # print "got $2\n";
          }
          if($line=~ /Registrar\s+Name:\s+((\S+)\s+)+/g){
             $self->setRegistrar($2);
@@ -154,7 +156,7 @@ sub parseResult{
             $self->setLastUpdated($self->sanitizeDate("$raw_date"));
          }
          if($capadmin or $captech or $capregistrant){
-               my $toffset;
+               my $toffset=0;
             if($line=~ /(\s+)\S+/){
                $toffset=length($1);
               # print "toffset is $toffset\n";
@@ -346,9 +348,15 @@ sub parseResult{
             $line=~ /(\S+)(\s+\S+){1,2}:((\S+\s+)+)/;
             #check if person object exists and get handle
             my $key=$1;
-            my $prop=$2;
-            my $val=$3;
+            my $prop="none";
+            if($2){
+               $prop=$2;
+            }
+            my $val;
+            if($3){
+             $val=$3;
             chomp $val;
+            }
             $key=lc($key);
             my $person;
             if($self->getPerson($key)){
@@ -358,7 +366,7 @@ sub parseResult{
                $person=new Net::WhoisNG::Person();
                $self->addPerson($person,$key);
             }
-            if($prop=~ /ID:/){
+            if($prop=~ /ID:/i){
                $person->setID($val);
                next;
             }
@@ -636,6 +644,10 @@ sub addPerson{
 sub addNameServer{
    my $self=shift;
    my $svr=shift;
+   #chomp $svr;
+   $svr=~ s/\r\n//g;
+   $svr=~ s/\n//g;
+   $svr=~ s/\r//g;
    my @ns;
    if(defined($self->{nameservers})){
       my $t_ns=$self->{nameservers};
@@ -666,7 +678,7 @@ Net::WhoisNG - Perl extension for whois lookup and parsing
 
   use Net::WhoisNG;
   my $w=new Net::WhoisNG($domain);
-  if(!$w->lookup()){
+  if(!$w->lookUp()){
      print "Domain not Found\n";
      exit;
   }
