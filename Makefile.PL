@@ -5,7 +5,7 @@ use ExtUtils::MakeMaker;
 WriteMakefile(
     NAME              => 'Net::WhoisNG',
     VERSION_FROM      => 'lib/Net/WhoisNG.pm', # finds $VERSION
-    PREREQ_PM         => {Net::WhoisNG::Person =>0.01}, # e.g., Module::Name => 1.1
+    PREREQ_PM         => {Net::WhoisNG::Person =>0.02}, # e.g., Module::Name => 1.1
     ($] >= 5.005 ?     ## Add these new keywords supported since 5.005
       (ABSTRACT_FROM  => 'lib/Net/WhoisNG.pm', # retrieve abstract from module
        AUTHOR         => 'Pritchard Musonda <stiqs@blackhills.net>') : ()),

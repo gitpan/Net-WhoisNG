@@ -30,7 +30,7 @@ our @EXPORT = qw(
 	
 );
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 sub new{
    my $class=shift;
@@ -146,7 +146,7 @@ sub parseResult{
          }
          if($line=~ /Expires on\s+(\S+)./gi or $line=~ /expires on\S*:\s+(\S+)\s+$/i  or $line=~ /expires on\S+:\s+((\S+\s+)+)/gi){
             $raw_date=$1;
-            print "Date is $raw_date\n";            
+            #print "Date is $raw_date\n";            
             $self->setExpirationDate($self->sanitizeDate("$raw_date"));
          }
          if($line=~ /updated on\s+(\S+)\./i or $line=~ /updated on\S*:\s+(\S+)\s+$/i or $line=~ /updated on\S+:\s+((\S+\s+)+)/i){
@@ -256,9 +256,9 @@ sub parseResult{
             my $toffset;
             my $cont=0;
             if($line=~ /^\s+$/){
-            print "Current tcap size:",@tcap+0;;
+            #print "Current tcap size:",@tcap+0;;
                if(!@tcap){
-               print "Unnecessary space\n";
+               #print "Unnecessary space\n";
                      next;
                   }
                   else{
@@ -406,10 +406,88 @@ sub parseResult{
             $self->setExpirationDate($self->sanitizeDate($1));
          }
          elsif($line=~ /last\s+updated:(\S+)/i){
-            $self->setLasUpdated($self->sanitizeDate($1));
+            $self->setLastUpdated($self->sanitizeDate($1));
          }
       }
       # Will implement .biz here
+      elsif($self->{domain}=~ /.biz/) {
+         # Above extensions are the most code friendly
+         #Registrant Street1:Whareroa Rd
+         if($line=~ /NOT\s+FOUND/){
+            return 0;
+         }
+         if($line=~ /^Billing/ or $line=~ /^Admin/ or $line=~ /^Tech/ or $line=~ /^Registrant/){
+            $line=~ s/Contact//;
+            $line=~ /(\S+)(\s+\S+){1,2}:\s+((\S+\s+)+)/;
+            #check if person object exists and get handle
+            my $key=$1;
+            my $prop=$2;
+            my $val=$3;
+            chomp $val;
+            $key=~ s/ing//;
+            $key=~ s/nical//;
+            $key=~ s/istrative//;
+            $key=lc($key);
+            my $person;
+            if($self->getPerson($key)){
+               $person=$self->getPerson($key);
+            }
+            else{
+               $person=new Net::WhoisNG::Person();
+               $self->addPerson($person,$key);
+            }
+            if($prop=~ /ID:/){
+               $person->setID($val);
+               next;
+            }
+            elsif($prop=~ /name/i){
+               $person->setName($val);
+               next;
+            }
+            elsif($prop=~ /organization/i){
+               $person->setOrganization($val);
+            }
+            elsif($prop=~ /address1/i){
+               $person->setStreet($val);
+               next;
+            }
+            elsif($prop=~ /address2/i){
+               $val=$person->getStreet()."\n$val";
+               $person->setStreet($val);
+               next;
+            }
+            elsif($prop=~ /city/i){
+               $person->setCity($val);
+               next;
+            }
+            elsif($line=~ /postal\s+code/i){
+               $person->setPostalCode($val);
+               next;
+            }
+            elsif($prop=~ /country/i){
+               $person->setCountry($val);
+               next;
+            }
+            elsif($line=~ /phone\s+number/i){
+               $person->setPhone($val);
+               next;
+            }
+            elsif($prop=~ /email/i){
+               $person->setEmail($val);
+               next;
+            }
+         }
+         elsif($line=~ /name\s+server:\s+(\S+\s+)/i){
+            $self->addNameServer($1);
+         }
+         #Tue Oct 28 16:05:56 GMT+00:00 2003
+         elsif($line=~ /expiration\s+date:\s+((\S+\s+)+){1,6}/i){
+            $self->setExpirationDate($self->sanitizeDate($1));
+         }
+         elsif($line=~ /last\s+updated\s+date:\s+((\S+\s+)+){1,6}/i){
+            $self->setLastUpdated($self->sanitizeDate($1));
+         }
+      }
       else{
          print "Parsing for $self->{domain} TLD not yet implemented\n";
          return 0;
@@ -435,6 +513,10 @@ sub sanitizeDate{
    }
    elsif($raw_date=~ /(\d{1,2})-(\w\w\w)-(\d\d)/){
       return "$2-$1-20$3";
+   }
+   elsif($raw_date=~ /((\S+\s+)+){1,6}/){
+      my @tmp=split(/\s+/,$raw_date);
+      return $tmp[1]."-".$tmp[2]."-".$tmp[5];
    }
 }
 
@@ -608,7 +690,7 @@ Net::WhoisNG - Perl extension for whois lookup and parsing
    
    my $contact=$w->getPerson($type);
    
-   'type' is one of (admin,tech,registrant)
+   'type' is one of (admin,tech,registrant,bill)
    
    The Person Object implements several methods to obtain properties of the contact
    
@@ -628,7 +710,7 @@ Whois Next Generation. Whois lookup module alternative to Net::Whois
 This module is used to lookup whois information on domains. I decided to 're-invent' the wheel because the Net::Whois only
 supports .org and .info formats and did not implement expiration date as of june 2004. 
 
-This version supports the com, net, org, info and edu TLDs. Rapidly implementing other TLDs.
+This version supports the com, net, org, info, biz and edu TLDs. Rapidly implementing other TLDs.
 
 The module starts by examinig the extension and setting the appropriate whois server. The whois server URL is constructed as $tld.whois-servers.net. The method lookup() then tries to connect and query the server. It then hands over to a parser and 
 returns 1 if successful or 0 otherwise. U can then obtain various properties using methods listed above. Note that not all properties will be defined for every domain.  

@@ -6,3 +6,6 @@ Revision history for Perl extension Net::WhoisNG.
 
 0.02  Fri jul 23, 2004
         - Cleaned up documentation spelling errors and such
+        
+0.03  Mon Jul 26 2004
+        - Implemented .biz tld
