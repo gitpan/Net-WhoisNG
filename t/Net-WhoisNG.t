@@ -28,11 +28,11 @@ diag(" *** GETTING REGISTRANT INFO ***");
 ok(defined $w->getPerson("registrant"),"No registrar") and printPerson($w,"registrant");
 
 my $ex=$w->getExpirationDate();
-print "Expires: $ex\n";
+diag("Expires: $ex\n");
 my $p=$w->getPerson("tech") or die "No admin contact\n";
 my $tc=$p->getCredentials();
 my @c=@$tc;
-print STDOUT "Tech Contact:\n",join("\n",@c);
+diag("Tech Contact:\n",join("\n",@c));
 my $status=$w->getStatus();
 
 if($status){

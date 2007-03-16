@@ -21,16 +21,16 @@ our @ISA = qw(Exporter);
 # If you do not need this, moving things directly into @EXPORT or @EXPORT_OK
 # will save memory.
 our %EXPORT_TAGS = ( 'all' => [ qw(
-	
+
 ) ] );
 
 our @EXPORT_OK = ( @{ $EXPORT_TAGS{'all'} } );
 
 our @EXPORT = qw(
-	
+
 );
 
-our $VERSION = '0.05';
+our $VERSION = '0.08';
 
 sub new{
    my $class=shift;
@@ -40,7 +40,7 @@ sub new{
    my $drop;
    $domain=~ s/\s+//g;
    $domain=~ s/\n+//g;
-   
+
    ($drop,$tld)=split(/\./,$domain);
    $self->{domain}=$domain;
    #now we try to connect to repective tld serverl
@@ -62,7 +62,7 @@ sub lookUp{
    my $server=$self->{server};
    if($self->{domain}){
       $raw_domain=$self->{domain};
-   }   
+   }
    my $ip = gethostbyname($server) or die "Failed gethostbyname $server\n";
    $ip = inet_ntoa($ip);
    my $sock = IO::Socket::INET->new(PeerAddr => $ip, PeerPort => 'whois', Proto => 'tcp') or print "Socket to $ip failed on $raw_domain\n" and return 0;
@@ -77,7 +77,7 @@ sub lookUp{
    $domain=$self->fixFormat($raw_domain);
    print $sock uc("$domain\n");
    my @rslts=<$sock>;
-   if($domain=~ /com$/ or $domain=~ /.net$/){
+   if($domain=~ /com$|.net$/){
       for(my $n=0;$n<@rslts;$n++){
          if($rslts[$n]=~ /Whois Server:\s+(\S+)\s+/){
             $server=$1;
@@ -88,7 +88,7 @@ sub lookUp{
             $sock->autoflush();
             print $sock uc("$raw_domain\n");
             @rslts=<$sock>;
-            
+
             $sock->close();
            # exit;
          }
@@ -113,6 +113,16 @@ sub fixFormat{
    }
 }
 
+sub setRegistrant{
+   my($self, $registrant)=@_;
+   $self->{'registrant'}=$registrant;
+}
+
+sub getRegistrant{
+   my $self = shift;
+   return $self->{'registrant'};
+}
+
 sub parseResult{
    my $self=shift;
    my $rslt_ref=$self->{rslts};
@@ -125,17 +135,21 @@ sub parseResult{
    my $offset;
    my @tcap;
    $self->{nameservers}=undef;
-   
+
    foreach my $line(@rslts){
       $line=~ s/\t/        /g;
-      if($self->{domain}=~ /.com$/ or $self->{domain}=~ /.net$/){
+      ## Do com and .net specific parsing
+      if($self->{domain}=~ /.com$|.net$|.tv$/){
          if($line=~ /No Match/i){
             return 0;
          }
-         #Do com and .net specific parsing
+
          if($line=~ /Registrar:\s+((\S+)\s+)+/g){
             $self->setRegistrar($2);
            # print "got $2\n";
+         }
+         elsif($line=~ /Registrant:\s+((\S+)\s+)+/g){
+            $self->setRegistrant($2);
          }
          if($line=~ /Registrar\s+Name:\s+((\S+)\s+)+/g){
             $self->setRegistrar($2);
@@ -149,7 +163,7 @@ sub parseResult{
          }
          if($line=~ /Expires on\s+(\S+)./gi or $line=~ /expires on\S*:\s+(\S+)\s+$/i  or $line=~ /expires on\S+:\s+((\S+\s+)+)/gi){
             $raw_date=$1;
-            #print "Date is $raw_date\n";            
+            #print "Date is $raw_date\n";
             $self->setExpirationDate($self->sanitizeDate("$raw_date"));
          }
          if($line=~ /updated on\s+(\S+)\./i or $line=~ /updated on\S*:\s+(\S+)\s+$/i or $line=~ /updated on\S+:\s+((\S+\s+)+)/i){
@@ -196,7 +210,7 @@ sub parseResult{
                $cappin=1;
                push(@tcap,$line);
                if($rslts[$#rslts]=~ /$1/){
-                  #done capturing. 
+                  #done capturing.
                   my @cap=@tcap;
                   $self->{nameservers}=\@cap;
                   $capns=0;
@@ -272,14 +286,14 @@ sub parseResult{
                #capture lines
                chomp $line;
                push(@tcap,$line);
-               next;               
+               next;
             }
                #done Capturing
                if($capadmin){
                   #create new object for admin person
                   if(@tcap<1){
                      next;
-                  }                  
+                  }
                   my $admin=new Net::WhoisNG::Person();
                   my @cap=@tcap;
                   $admin->{credentials}=\@cap;
@@ -299,13 +313,13 @@ sub parseResult{
                $capadmin=0;
                $capregistrant=0;
             }
-         
+
          elsif($capns){
             if($line=~ /(\S+)/){
                $cappin=1;
                push(@tcap,$line);
                if($rslts[$#rslts]=~ /$1/){
-                  #done capturing. 
+                  #done capturing.
                   my @cap=@tcap;
                   $self->{nameservers}=\@cap;
                   $capns=0;
@@ -339,27 +353,38 @@ sub parseResult{
             next;
          }
       }
-      elsif($self->{domain}=~ /.org/ or $self->{domain}=~ /.info/) {
+      elsif($self->{domain}=~ /.org$|.info$|.us$/i) {
          # Above extensions are the most code friendly
          #Registrant Street1:Whareroa Rd
          if($line=~ /NOT\s+FOUND/){
             return 0;
          }
-         if($line=~ /^Billing/ or $line=~ /^Admin/ or $line=~ /^Tech/ or $line=~ /^Registrant/){
-            $line=~ /(\S+)(\s+\S+){1,2}:((\S+\s+)+)/;
-            #check if person object exists and get handle
+         $line =~ s/:\s+/:/g;
+
+         if($line=~ /^(Bill|^Admin|^Tech|^Registrant)/){
+
             my $key=$1;
-            my $prop="none";
+            # Remove for parsing .us
+            $line =~ s/contact//i;
+            $line =~ s/:\s+/:/g;
+            $line =~ /(\S+)(\s+\S+){1,2}:((\S+\s+)+)/;
+            #check if person object exists and get handle
+            my ( $val, $prop);
+            #print $key . "\n";
+            $prop="none";
+
             if($2){
                $prop=$2;
             }
-            my $val;
+
             if($3){
-             $val=$3;
-            chomp $val;
+               $val=$3;
+                chomp $val;
             }
+
             $key=lc($key);
             my $person;
+
             if($self->getPerson($key)){
                $person=$self->getPerson($key);
             }
@@ -411,21 +436,20 @@ sub parseResult{
          elsif($line=~ /name\s+server:(\S+\s+)/i){
             $self->addNameServer($1);
          }
-         elsif($line=~ /expiration\s+date:(\S+)/i){
+         elsif($line=~ /expiration\s+date:(.*)/i){
             $self->setExpirationDate($self->sanitizeDate($1));
          }
-         elsif($line=~ /last\s+updated:(\S+)/i){
+         elsif($line=~ /last\s+updated\s+\S+:(.*)/i){
             $self->setLastUpdated($self->sanitizeDate($1));
          }
       }
       # Will implement .biz here
-      elsif($self->{domain}=~ /.biz/) {
-         # Above extensions are the most code friendly
-         #Registrant Street1:Whareroa Rd
+      elsif($self->{domain}=~ /.biz$/) {
+
          if($line=~ /NOT\s+FOUND/i){
             return 0;
          }
-         if($line=~ /^Billing/ or $line=~ /^Admin/ or $line=~ /^Tech/ or $line=~ /^Registrant/){
+         if($line=~ /^Bill/ or $line=~ /^Admin/ or $line=~ /^Tech/ or $line=~ /^Registrant/){
             $line=~ s/Contact//;
             $line=~ /(\S+)(\s+\S+){1,2}:\s+((\S+\s+)+)/;
             #check if person object exists and get handle
@@ -433,9 +457,8 @@ sub parseResult{
             my $prop=$2;
             my $val=$3;
             chomp $val;
-            $key=~ s/ing//;
-            $key=~ s/nical//;
-            $key=~ s/istrative//;
+            $key=~ s/ing|nical|istrative//;
+
             $key=lc($key);
             my $person;
             if($self->getPerson($key)){
@@ -530,6 +553,10 @@ sub sanitizeDate{
       my @tmp=split(/\s+/,$raw_date);
       return $tmp[1]."-".$tmp[2]."-".$tmp[5];
    }
+   #Wed Sep 05 23:59:59 GMT 2007
+   elsif($raw_date =~ /\w\w\w\s+(\w\w\w)\s+(\d{1,2})\S+\s+\w\w\w\s+(\d{4})/){
+      return "$1-$2-$3";
+   }
 }
 
 sub getLastUpdated{
@@ -603,7 +630,7 @@ sub getStatus{
    my $cmonth=$now[4];
    if(length($cmonth)==1){
       $cmonth="0$cmonth";
-   }   
+   }
    my $cday=$now[3];
    if(length($cday)==1){
       $cday="0$cday";
@@ -666,6 +693,9 @@ sub getNameServers{
    return $self->{nameservers};
 }
 
+sub parseUK{
+}
+
 sub expired{
 }
 
@@ -692,49 +722,51 @@ Net::WhoisNG - Perl extension for whois  and parsing
      exit;
   }
   # If lookup is successful, record is parsed and ready for use
-  
-=head2 Methods 
- 
+
+=head2 Methods
+
    Single Value properties return respective scalars from their getXX methods.
    The available single value getXX method are getExpirationDate(), getLastUpdated(),
-   getCreatedDate(), getStatus(). 
-   
+   getCreatedDate(), getStatus().
+
    my $exp_date=$w->getExpirationDate();
-   
+
    Obtaining name servers is done with getNameServers() which returns a reference to an
    array of name servers.
-   
+
    my $t_ns=$w->getNameServers();
    my @ns=@$t_ns;
-   
+
    Contacts are implemeted as a person object.
-   
+
    my $contact=$w->getPerson($type);
-   
+
    'type' is one of (admin,tech,registrant,bill)
-   
+
    The Person Object implements several methods to obtain properties of the contact
-   
+
    $contact->getCredentials(); #Returns a ref to an array of contact info for $type
-   
-   getCredentials() was implemeted to return an unparsed set of info about a contact beacause some 
-   whois servers are so irregular in their formatting that it was a impractical to 
+
+   getCredentials() was implemeted to return an unparsed set of info about a contact beacause some
+   whois servers are so irregular in their formatting that it was a impractical to
    parse the contact info further. Where available such as with .org and .info the following methods work.
-   
+
    getName(), getOrganization(), getState(), getPostalCode, getCountry(), getEmail(),
    getStreet(), getPhone(), getFax()
-   
+
 =head1 DESCRIPTION
 
-Whois Next Generation. Whois lookup module alternative to Net::Whois 
+Whois Next Generation. Whois lookup module alternative to Net::Whois
 
-This module is used to lookup whois information on domains. I decided to 're-invent' the wheel because the Net::Whois only
-supports .org and .info formats and did not implement expiration date as of june 2004. 
+This module is used to lookup whois information on domains.
 
-This version supports the com, net, org, info, biz and edu TLDs. Rapidly implementing other TLDs.
+This version supports the com, net, org, info, biz, us and edu TLDs. Rapidly implementing other TLDs.
 
-The module starts by examinig the extension and setting the appropriate whois server. The whois server URL is constructed as $tld.whois-servers.net. The method lookUp() then tries to connect and query the server. It then hands over to a parser and 
-returns 1 if successful or 0 otherwise. U can then obtain various properties using methods listed above. Note that not all properties will be defined for every domain.  
+next in line .co.uk .org.uk .net.uk. I think these all have the same format so will only need one implementation.
+let me know which ones you'd want implemented sooner than others.
+
+The module starts by examinig the extension and setting the appropriate whois server. The whois server URL is constructed as $tld.whois-servers.net. The method lookUp() then tries to connect and query the server. It then hands over to a parser and
+returns 1 if successful or 0 otherwise. U can then obtain various properties using methods listed above. Note that not all properties will be defined for every domain.
 
 =head2 EXPORT
 
@@ -744,9 +776,9 @@ None.
 
 =head1 SEE ALSO
 
-Net::WhoisNG::Person, whois
+<L>Net::WhoisNG::Person, whois
 
-http://www.freebsdadmin.net
+http://www.stiqs.org
 
 =head1 AUTHOR
 
