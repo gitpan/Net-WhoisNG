@@ -18,7 +18,7 @@ my $dom="perl.org";
 my $w = new Net::WhoisNG($dom) or die "domain creation failed\n";
 diag("** TESTING ON $dom **");
 if(!$w->lookUp()){
-    diag("freebsd.org should be alive and well this century\n");
+    diag("perl.org should be alive and well this century\n");
    exit;
 }
 ok(defined $w->lookUp(),"Lookup succeeded!") and diag("\n","$dom Resolved fine");
@@ -52,9 +52,9 @@ sub printNameServers{
 sub printPerson{
    my $lw=shift;
    my $mytype=shift;
-   my $p=$lw->getPerson($mytype); 
-   diag("\n"); 
-   diag("Name: ",$p->getName()); 
+   my $p=$lw->getPerson($mytype);
+   diag("\n");
+   diag("Name: ",$p->getName());
    diag("Phone: ",$p->getPhone());
 }
 ok(1);

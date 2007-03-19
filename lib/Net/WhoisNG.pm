@@ -7,6 +7,7 @@ use Carp;
 use IO::Socket;
 use IO::File;
 use Net::WhoisNG::Person;
+use Data::Dumper;
 #use AutoLoader 'AUTOLOAD';
 
 require Exporter;
@@ -30,7 +31,7 @@ our @EXPORT = qw(
 
 );
 
-our $VERSION = '0.08';
+our $VERSION = '0.09';
 
 sub new{
    my $class=shift;
@@ -47,6 +48,8 @@ sub new{
    my $server="$tld.whois-servers.net";
    $self->{server}=$server;
    bless $self;
+   my %tree ;
+   $self->{tree}=\%tree;
    return $self;
 }
 
@@ -417,7 +420,7 @@ sub parseResult{
                next;
             }
             elsif($prop=~ /code/i){
-               $person->setPostalCode($val);
+               $person->setPostalCode("$val");
                next;
             }
             elsif($prop=~ /country/i){
@@ -679,18 +682,71 @@ sub addNameServer{
    $svr=~ s/\r\n//g;
    $svr=~ s/\n//g;
    $svr=~ s/\r//g;
+   $svr =~ s/\s+//g;
+   $svr = lc($svr);
    my @ns;
+
    if(defined($self->{nameservers})){
       my $t_ns=$self->{nameservers};
       @ns=@$t_ns;
    }
-   push(@ns,$svr);
+   push(@ns, $svr);
    $self->{nameservers}=\@ns;
 }
 
 sub getNameServers{
    my $self=shift;
-   return $self->{nameservers};
+   my $ns = $self->{nameservers};
+   my @resp = @$ns;
+   map(chomp, @resp);
+   map(lc, @resp);
+   map(s/\s+//g, @resp);
+   return \@resp;
+}
+
+sub toXML{
+   require XML::Simple;
+
+   my $self = shift;
+
+   my $xml = XML::Simple->new(suppressempty=>'',XMLDecl => 1, NoAttr => 1)  or return undef;
+
+   my $tree = ();
+   $tree->{'domain_name'} = $self->{'domain'};
+   my $people = $self->{"people"};
+   my %contacts = %$people;
+   my @rawcontacts;
+   my $raw = 0;
+
+   foreach my $key(keys(%$people)){
+      my $val = $contacts{$key};
+      my $hash = $val->getRawHash();
+      if(defined($hash)){
+         $hash->{'parsed'} = "1";
+         $hash->{'type'} = $key;
+         push(@rawcontacts, $hash);
+      }
+      else{
+         $raw = 1;
+         my $line = ();
+         $line->{'detail'}=$val->getCredentials();
+         $line->{'type'} = $key;
+         $line->{'parsed'} = 0;
+         push(@rawcontacts, $line);
+      }
+   }
+
+   $tree->{"contact"}=\@rawcontacts;
+
+
+   $tree->{"name_server"} = $self->getNameServers();
+
+   $tree->{status} = $self->getStatus();
+   $tree->{"expiration_date"} = $self->{'expirationdate'};
+   $tree->{"last_updated_date"} = $self->{"lastupdated"};
+   $tree->{"created_date"} = $self->{"createddate"} if defined($self->{"createddate"});
+
+   return $xml->XMLout($tree);
 }
 
 sub parseUK{
@@ -703,11 +759,9 @@ sub lookup{
    my $self=shift;
    return $self->lookUp();
 }
-# Preloaded methods go here.
 
 1;
 __END__
-# Below is stub documentation for your module. You'd better edit it!
 
 =head1 NAME
 
@@ -754,6 +808,9 @@ Net::WhoisNG - Perl extension for whois  and parsing
    getName(), getOrganization(), getState(), getPostalCode, getCountry(), getEmail(),
    getStreet(), getPhone(), getFax()
 
+   you can get an XML representation of the Data if you the the optional XML::simple module by calling
+    $w->getXML();
+
 =head1 DESCRIPTION
 
 Whois Next Generation. Whois lookup module alternative to Net::Whois
@@ -768,15 +825,69 @@ let me know which ones you'd want implemented sooner than others.
 The module starts by examinig the extension and setting the appropriate whois server. The whois server URL is constructed as $tld.whois-servers.net. The method lookUp() then tries to connect and query the server. It then hands over to a parser and
 returns 1 if successful or 0 otherwise. U can then obtain various properties using methods listed above. Note that not all properties will be defined for every domain.
 
-=head2 EXPORT
+=head1 EXAMPLE
 
-None.
+   use Net::WhoisNG();
+   my $w = new Net::WhoisNG();
 
+   if($w->lookUp()){
+      my $rawxml = $w->toXML(); # Get raw XML representation (XML::Simple required)
+      my $exp_date=$w->getExpirationDate();
+   }
 
+=head2 XML Printout
+
+   <?xml version='1.0' standalone='yes'?>
+   <opt>
+     <domain_name>perl.org</domain_name>
+     <expiration_date>May-30-2010</expiration_date>
+     <last_updated_date>Nov-12-2006</last_updated_date>
+     <name_server>ns2.develooper.com</name_server>
+     <name_server>ns1.us.bitnames.com</name_server>
+     <name_server>ns2.us.bitnames.com</name_server>
+     <name_server>ns1.eu.bitnames.com</name_server>
+     <status>1</status>
+     <contact>
+       <name>perl.org hostmaster</name>
+       <city>Beverly Hills</city>
+       <country>US</country>
+       <email>dns@perl.org</email>
+       <organization>The Perl Foundation</organization>
+       <parsed>1</parsed>
+       <phone>+1.8665501313</phone>
+       <postalcode>90209</postalcode>
+       <street>PO Box 18111</street>
+       <type>tech</type>
+     </contact>
+     <contact>
+       <detail>Golden West Telecomm</detail>
+       <detail>System Administrator</detail>
+       <detail>PO Box 411</detail>
+       <detail>Wall, SD 57790</detail>
+       <detail>US</detail>
+       <detail>+1.6052792161 (FAX) +1.6052792727</detail>
+       <detail>33772@whois.gkg.net</detail>
+       <parsed>0</parsed>
+       <type>tech</type>
+     </contact>
+   </opt>
+
+   Above XML shows the elements and how they are organized for XML output. There are two
+   formats for representing whois contacts. One just dumps an unparsed record of the contact's
+   deatails as shown in secend contact while the other one splits this into specific contact
+   properties. Every contact will have a <parsed>1|0</parsed> element to indicate whether the
+   contact information is parsed any further. The reason for the unparsed version as mentioned
+   earlier, is the inconsistencies of some whois servers. The tag <status>0|1</status> shows
+   whether domain is active or not.
+
+=head1 DEPENDECIES
+
+ Net::WhoisNG::Person - Bundled along
+ XML::Simple - (optional) for XML output
 
 =head1 SEE ALSO
 
-<L>Net::WhoisNG::Person, whois
+Net::WhoisNG::Person, whois
 
 http://www.stiqs.org
 

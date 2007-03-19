@@ -6,14 +6,23 @@ Revision history for Perl extension Net::WhoisNG.
 
 0.02  Fri jul 23, 2004
         - Cleaned up documentation spelling errors and such
-        
+
 0.03  Mon Jul 26 2004
         - Implemented .biz tld
-        
+
 0.04  Fri Dec 3, 2004
         - Updated documentation
         - Fixed some runtime errors relating to udefined objects
-        
+
 0.05  Fri Dec 3, 2004
         - more doc fix
         - added more informative test code
+
+0.08  Fri Mar 16, 2007
+        - implemented .us
+        - fixed some bugs
+        - moved Person.pm into main distribution
+
+0.09  Sat Mar 17, 2007
+        - Added Person.pm to MANIFEST (had missed it last upload)
+        - implemented toXML for an XML view of data
